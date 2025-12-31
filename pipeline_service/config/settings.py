@@ -36,8 +36,8 @@ class Settings(BaseSettings):
     compression: bool = Field(default=False, env="COMPRESSION")
 
     # Qwen Edit settings
-    qwen_edit_base_model_path: str = Field(default="Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",env="QWEN_EDIT_BASE_MODEL_PATH")
-    qwen_edit_model_path: str = Field(default="Qwen/Qwen-Image-Edit-2511",env="QWEN_EDIT_MODEL_PATH")
+    qwen_edit_base_model_path: str = Field(default="Qwen-Image-Edit-2509/Qwen-Image-Edit-2509-Lightning-8steps-V1.0-bf16.safetensors",env="QWEN_EDIT_BASE_MODEL_PATH")
+    qwen_edit_model_path: str = Field(default="Qwen/Qwen-Image-Edit-2509",env="QWEN_EDIT_MODEL_PATH")
     qwen_edit_height: int = Field(default=1024, env="QWEN_EDIT_HEIGHT")
     qwen_edit_width: int = Field(default=1024, env="QWEN_EDIT_WIDTH")
     num_inference_steps: int = Field(default=4, env="NUM_INFERENCE_STEPS")
