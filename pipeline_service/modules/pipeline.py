@@ -133,17 +133,13 @@ class GenerationPipeline:
         # Decode input image
         image = decode_image(request.prompt_image)
 
-        # 1. Edit the image using Qwen Edit
-        image_edited = self.qwen_edit.edit_image(
-            prompt_image=image,
-            seed=request.seed,
-            prompt="Show this object in left three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
-        )
+        # image_edited = self.qwen_edit.edit_image(
+        #     prompt_image=image,
+        #     seed=request.seed,
+        #     prompt="Show this object in left three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
+        # )
+        # image_without_background = self.rmbg.remove_background(image_edited)
 
-        # 2. Remove background
-        image_without_background = self.rmbg.remove_background(image_edited)
-
-        # add another view of the image
         image_edited_2 = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
@@ -151,19 +147,12 @@ class GenerationPipeline:
         )
         image_without_background_2 = self.rmbg.remove_background(image_edited_2)
 
-        # add another view of the image
         image_edited_3 = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
             prompt="Show this object in back view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
         )
         image_without_background_3 = self.rmbg.remove_background(image_edited_3)
-
-        # save to debug
-        # image_edited.save("image_edited.png")
-        # image_edited_2.save("image_edited_2.png")
-        # image_without_background.save("image_without_background.png")
-        # image_without_background_2.save("image_without_background_2.png")
 
         trellis_result: Optional[TrellisResult] = None
 
@@ -173,7 +162,8 @@ class GenerationPipeline:
         # 3. Generate the 3D model
         trellis_result = self.trellis.generate(
             TrellisRequest(
-                images=[image_without_background, image_without_background_2, image_without_background_3],
+                # images=[image_without_background, image_without_background_2, image_without_background_3],
+                images=[image_without_background_2, image_without_background_3],
                 seed=request.seed,
                 params=trellis_params,
             )
@@ -184,8 +174,8 @@ class GenerationPipeline:
             save_files(
                 trellis_result, 
                 image, 
-                image_edited, 
-                image_without_background,
+                # image_edited, 
+                # image_without_background,
                 image_edited_2,
                 image_without_background_2,
                 image_edited_3,
@@ -196,8 +186,10 @@ class GenerationPipeline:
         image_edited_base64 = None
         image_without_background_base64 = None
         if self.settings.send_generated_files:
-            image_edited_base64 = to_png_base64(image_edited)
-            image_without_background_base64 = to_png_base64(image_without_background)
+            # image_edited_base64 = to_png_base64(image_edited)
+            # image_without_background_base64 = to_png_base64(image_without_background)
+            image_edited_base64 = to_png_base64(image_edited_2)
+            image_without_background_base64 = to_png_base64(image_without_background_2)
 
         t2 = time.time()
         generation_time = t2 - t1
