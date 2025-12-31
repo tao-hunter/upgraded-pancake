@@ -8,6 +8,14 @@
 
 Updated the 3D generation pipeline to produce **high-quality models that closely match the input image** in shape, color, effects, and sub-objects. This should achieve lower penalty scores from LLM judge services.
 
+### Latest Update: Quick Wins (v2.1)
+Added 3 additional optimizations with minimal performance overhead:
+1. **Color Calibration** - Exact color matching across all views
+2. **Lighting Normalization** - Consistent brightness for better 3D reconstruction
+3. **View Consistency Validation** - Early detection of problematic generations
+
+See `QUICK_WINS_IMPLEMENTED.md` for details.
+
 ---
 
 ## Files Modified

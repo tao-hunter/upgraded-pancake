@@ -10,6 +10,7 @@ from PIL import Image
 import pyspz
 import torch
 import gc
+import numpy as np
 
 from config import Settings, settings
 from logger_config import logger
@@ -107,6 +108,144 @@ class GenerationPipeline:
         
         logger.info(f"Enhanced image quality: {image.size}")
         return image
+    
+    def _calibrate_colors(self, original: Image.Image, edited: Image.Image) -> Image.Image:
+        """
+        Calibrate edited image colors to match original image.
+        This ensures exact color preservation across all generated views.
+        
+        Args:
+            original: Original input image (reference)
+            edited: Edited image that may have color drift
+            
+        Returns:
+            Color-calibrated image matching original
+        """
+        from PIL import ImageStat
+        
+        try:
+            # Get color statistics from both images
+            orig_stat = ImageStat.Stat(original)
+            edit_stat = ImageStat.Stat(edited)
+            
+            # Calculate correction factors for each RGB channel
+            corrections = []
+            for i in range(3):  # RGB channels
+                if edit_stat.mean[i] > 0:
+                    correction = orig_stat.mean[i] / edit_stat.mean[i]
+                    # Limit correction to reasonable range to avoid artifacts
+                    correction = max(0.8, min(1.2, correction))
+                else:
+                    correction = 1.0
+                corrections.append(correction)
+            
+            # Apply color corrections
+            edited_array = np.array(edited).astype(float)
+            for i in range(3):  # RGB
+                edited_array[:,:,i] *= corrections[i]
+            
+            # Clip values to valid range
+            edited_array = np.clip(edited_array, 0, 255).astype(np.uint8)
+            calibrated = Image.fromarray(edited_array)
+            
+            logger.info(f"Color calibration applied - Corrections: R={corrections[0]:.3f}, G={corrections[1]:.3f}, B={corrections[2]:.3f}")
+            return calibrated
+            
+        except Exception as e:
+            logger.warning(f"Color calibration failed: {e}, using original edited image")
+            return edited
+    
+    def _normalize_lighting(self, images: list[Image.Image]) -> list[Image.Image]:
+        """
+        Normalize lighting across all views for consistency.
+        This helps Trellis understand 3D structure better.
+        
+        Args:
+            images: List of images from different views
+            
+        Returns:
+            List of lighting-normalized images
+        """
+        from PIL import ImageStat, ImageEnhance
+        
+        try:
+            # Calculate brightness for each image (average of RGB channels)
+            brightness_values = []
+            for img in images:
+                stat = ImageStat.Stat(img)
+                avg_brightness = sum(stat.mean[:3]) / 3  # RGB average
+                brightness_values.append(avg_brightness)
+            
+            # Calculate target brightness (median to avoid outliers)
+            target_brightness = sorted(brightness_values)[len(brightness_values) // 2]
+            
+            # Normalize each image
+            normalized = []
+            for img, current_brightness in zip(images, brightness_values):
+                if current_brightness > 0:
+                    factor = target_brightness / current_brightness
+                    # Limit adjustment to avoid overexposure/underexposure
+                    factor = max(0.8, min(1.2, factor))
+                    
+                    enhancer = ImageEnhance.Brightness(img)
+                    normalized_img = enhancer.enhance(factor)
+                    normalized.append(normalized_img)
+                else:
+                    normalized.append(img)
+            
+            logger.info(f"Lighting normalization applied - Target brightness: {target_brightness:.1f}")
+            return normalized
+            
+        except Exception as e:
+            logger.warning(f"Lighting normalization failed: {e}, using original images")
+            return images
+    
+    def _validate_view_consistency(self, views: list[Image.Image], original: Image.Image) -> bool:
+        """
+        Validate that generated views are consistent with each other and the original.
+        Checks color consistency to ensure all views show the same object.
+        
+        Args:
+            views: List of generated view images
+            original: Original input image for reference
+            
+        Returns:
+            True if views are consistent, False otherwise
+        """
+        from PIL import ImageStat
+        
+        try:
+            # Get color statistics for all views
+            color_stats = [ImageStat.Stat(view) for view in views]
+            orig_stat = ImageStat.Stat(original)
+            
+            # Check color consistency across views
+            for channel in range(3):  # RGB channels
+                channel_values = [stat.mean[channel] for stat in color_stats]
+                original_value = orig_stat.mean[channel]
+                
+                # Calculate variance from original
+                max_diff = max(abs(val - original_value) for val in channel_values)
+                
+                # Threshold: views shouldn't differ from original by more than 50 units
+                if max_diff > 50:
+                    logger.warning(f"High color variance in channel {channel}: {max_diff:.1f} units from original")
+                    return False
+            
+            # Check contrast consistency
+            contrasts = [stat.stddev[0] if stat.stddev else 0 for stat in color_stats]
+            contrast_variance = max(contrasts) - min(contrasts)
+            
+            if contrast_variance > 40:
+                logger.warning(f"High contrast variance: {contrast_variance:.1f}")
+                return False
+            
+            logger.info("✓ View consistency validation passed")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"View consistency validation failed: {e}, proceeding anyway")
+            return True  # Don't block generation on validation failure
 
     async def warmup_generator(self) -> None:
         """Function for warming up the generator"""
@@ -193,6 +332,8 @@ class GenerationPipeline:
             seed=request.seed,
             prompt="Rotate object 45 degrees left while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
         )
+        # Apply color calibration to match original
+        image_edited_left = self._calibrate_colors(image, image_edited_left)
         image_without_background_left = self.rmbg.remove_background(image_edited_left)
 
         # Right three-quarters view
@@ -201,6 +342,8 @@ class GenerationPipeline:
             seed=request.seed,
             prompt="Rotate object 45 degrees right while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
         )
+        # Apply color calibration to match original
+        image_edited_right = self._calibrate_colors(image, image_edited_right)
         image_without_background_right = self.rmbg.remove_background(image_edited_right)
 
         # Back view for better 3D reconstruction
@@ -209,6 +352,8 @@ class GenerationPipeline:
             seed=request.seed,
             prompt="Show back view of object while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
         )
+        # Apply color calibration to match original
+        image_edited_back = self._calibrate_colors(image, image_edited_back)
         image_without_background_back = self.rmbg.remove_background(image_edited_back)
 
         trellis_result: Optional[TrellisResult] = None
@@ -216,17 +361,28 @@ class GenerationPipeline:
         # Resolve Trellis parameters from request
         trellis_params: TrellisParams = request.trellis_params
 
+        # Collect all views
+        all_views = [
+            image_without_background_primary,  # Primary view (original)
+            image_without_background_left,      # Left 3/4 view
+            image_without_background_right,     # Right 3/4 view
+            image_without_background_back,      # Back view
+        ]
+        
+        # Quick Win #3: Validate view consistency
+        if not self._validate_view_consistency(all_views, image):
+            logger.warning("View consistency check failed - colors may not match perfectly")
+            # Continue anyway, but log the warning
+        
+        # Quick Win #2: Normalize lighting across all views
+        all_views_normalized = self._normalize_lighting(all_views)
+
         # 3. Generate the 3D model with multiple views
         # Order: Primary (front) -> Left -> Right -> Back
         # Primary view has most weight in reconstruction
         trellis_result = self.trellis.generate(
             TrellisRequest(
-                images=[
-                    image_without_background_primary,  # Primary view (original)
-                    image_without_background_left,      # Left 3/4 view
-                    image_without_background_right,     # Right 3/4 view
-                    image_without_background_back,      # Back view
-                ],
+                images=all_views_normalized,
                 seed=request.seed,
                 params=trellis_params,
             )

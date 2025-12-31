@@ -26,16 +26,18 @@ For best quality matching the input image, use these environment variables:
 ```bash
 # Enable high-quality mode
 USE_ORIGINAL_AS_PRIMARY=true
-TRELLIS_SPARSE_STRUCTURE_STEPS=12
+TRELLIS_SPARSE_STRUCTURE_STEPS=10
 TRELLIS_SPARSE_STRUCTURE_CFG_STRENGTH=6.5
-TRELLIS_SLAT_STEPS=30
+TRELLIS_SLAT_STEPS=24
 TRELLIS_SLAT_CFG_STRENGTH=3.0
 TRELLIS_NUM_OVERSAMPLES=4
-NUM_INFERENCE_STEPS=6
+NUM_INFERENCE_STEPS=5
 TRUE_CFG_SCALE=1.2
 ```
 
-See `QUALITY_IMPROVEMENTS.md` for detailed explanation of quality optimizations
+**New in v2.1:** Automatic color calibration, lighting normalization, and view validation!
+
+See `QUALITY_IMPROVEMENTS.md` and `QUICK_WINS_IMPLEMENTED.md` for detailed explanations
 
 - Start with docker-compose 
 
