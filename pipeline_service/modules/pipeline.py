@@ -73,6 +73,40 @@ class GenerationPipeline:
         """
         gc.collect()
         torch.cuda.empty_cache()
+    
+    def _enhance_image_quality(self, image: Image.Image) -> Image.Image:
+        """
+        Enhance image quality while preserving original features.
+        
+        Args:
+            image: Input PIL Image
+            
+        Returns:
+            Enhanced PIL Image
+        """
+        from PIL import ImageEnhance, ImageFilter
+        
+        # Convert to RGB if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # 1. Mild denoising to reduce artifacts without losing detail
+        image = image.filter(ImageFilter.MedianFilter(size=3))
+        
+        # 2. Enhance sharpness slightly to preserve fine details
+        enhancer = ImageEnhance.Sharpness(image)
+        image = enhancer.enhance(1.15)  # Mild sharpening
+        
+        # 3. Enhance contrast slightly for better feature definition
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(1.1)  # Mild contrast boost
+        
+        # 4. Enhance color saturation slightly (preserves original colors)
+        enhancer = ImageEnhance.Color(image)
+        image = enhancer.enhance(1.05)  # Very mild saturation boost
+        
+        logger.info(f"Enhanced image quality: {image.size}")
+        return image
 
     async def warmup_generator(self) -> None:
         """Function for warming up the generator"""
@@ -132,38 +166,67 @@ class GenerationPipeline:
 
         # Decode input image
         image = decode_image(request.prompt_image)
+        
+        # Enhance the original image quality
+        image_enhanced = self._enhance_image_quality(image)
+        
+        # Strategy: Use original image as primary view + generate complementary views
+        # This preserves the exact colors, shape, and details from the input
+        
+        if self.settings.use_original_as_primary:
+            # Use the original (enhanced) image directly as the primary view
+            logger.info("Using original image as primary view to preserve accuracy")
+            image_primary = self.qwen_edit.edit_image(
+                prompt_image=image_enhanced,
+                seed=request.seed,
+                prompt="Preserve exact colors, shapes, and all details. Only improve image quality and remove background with neutral solid color. Keep the same viewing angle",
+            )
+            image_without_background_primary = self.rmbg.remove_background(image_primary)
+        else:
+            # Legacy: edit the image
+            image_without_background_primary = self.rmbg.remove_background(image_enhanced)
 
-        image_edited = self.qwen_edit.edit_image(
+        # Generate complementary views with minimal transformation
+        # Left three-quarters view
+        image_edited_left = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
-            prompt="Show this object in left three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
+            prompt="Rotate object 45 degrees left while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
         )
-        image_without_background = self.rmbg.remove_background(image_edited)
+        image_without_background_left = self.rmbg.remove_background(image_edited_left)
 
-        image_edited_2 = self.qwen_edit.edit_image(
+        # Right three-quarters view
+        image_edited_right = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
-            prompt="Show this object in right three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
+            prompt="Rotate object 45 degrees right while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
         )
-        image_without_background_2 = self.rmbg.remove_background(image_edited_2)
+        image_without_background_right = self.rmbg.remove_background(image_edited_right)
 
-        # image_edited_3 = self.qwen_edit.edit_image(
-        #     prompt_image=image,
-        #     seed=request.seed,
-        #     prompt="Show this object in back view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
-        # )
-        # image_without_background_3 = self.rmbg.remove_background(image_edited_3)
+        # Back view for better 3D reconstruction
+        image_edited_back = self.qwen_edit.edit_image(
+            prompt_image=image,
+            seed=request.seed,
+            prompt="Show back view of object while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
+        )
+        image_without_background_back = self.rmbg.remove_background(image_edited_back)
 
         trellis_result: Optional[TrellisResult] = None
 
         # Resolve Trellis parameters from request
         trellis_params: TrellisParams = request.trellis_params
 
-        # 3. Generate the 3D model
+        # 3. Generate the 3D model with multiple views
+        # Order: Primary (front) -> Left -> Right -> Back
+        # Primary view has most weight in reconstruction
         trellis_result = self.trellis.generate(
             TrellisRequest(
-                # images=[image_without_background, image_without_background_2, image_without_background_3],
-                images=[image_without_background, image_without_background_2],
+                images=[
+                    image_without_background_primary,  # Primary view (original)
+                    image_without_background_left,      # Left 3/4 view
+                    image_without_background_right,     # Right 3/4 view
+                    image_without_background_back,      # Back view
+                ],
                 seed=request.seed,
                 params=trellis_params,
             )
@@ -174,20 +237,22 @@ class GenerationPipeline:
             save_files(
                 trellis_result, 
                 image, 
-                image_edited, 
-                image_without_background,
-                image_edited_2,
-                image_without_background_2,
-                # image_edited_3,
-                # image_without_background_3
+                image_primary if self.settings.use_original_as_primary else image_enhanced,
+                image_without_background_primary,
+                image_edited_left,
+                image_without_background_left,
+                image_edited_right,
+                image_without_background_right,
+                image_edited_back,
+                image_without_background_back,
             )
 
         # Convert to PNG base64 for response (only if needed)
         image_edited_base64 = None
         image_without_background_base64 = None
         if self.settings.send_generated_files:
-            image_edited_base64 = to_png_base64(image_edited)
-            image_without_background_base64 = to_png_base64(image_without_background)
+            image_edited_base64 = to_png_base64(image_primary if self.settings.use_original_as_primary else image_enhanced)
+            image_without_background_base64 = to_png_base64(image_without_background_primary)
 
         t2 = time.time()
         generation_time = t2 - t1
