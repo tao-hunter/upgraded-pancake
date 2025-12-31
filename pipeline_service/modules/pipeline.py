@@ -325,32 +325,32 @@ class GenerationPipeline:
             # Legacy: edit the image
             image_without_background_primary = self.rmbg.remove_background(image_enhanced)
 
-        # Generate complementary views with minimal transformation
-        # Left three-quarters view
+        # Generate complementary views with 3D rotation (around vertical Y-axis)
+        # Left three-quarters view - 45° rotation around vertical axis (Y-axis)
         image_edited_left = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
-            prompt="Rotate object 45 degrees left while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
+            prompt="Rotate object 45 degrees counterclockwise around vertical axis (Y-axis) to show left three-quarter view. Preserve exact colors, textures, proportions, and all details. Clean neutral background. Maintain 3D depth and volume",
         )
         # Apply color calibration to match original
         image_edited_left = self._calibrate_colors(image, image_edited_left)
         image_without_background_left = self.rmbg.remove_background(image_edited_left)
 
-        # Right three-quarters view
+        # Right three-quarters view - 45° rotation around vertical axis (Y-axis)
         image_edited_right = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
-            prompt="Rotate object 45 degrees right while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
+            prompt="Rotate object 45 degrees clockwise around vertical axis (Y-axis) to show right three-quarter view. Preserve exact colors, textures, proportions, and all details. Clean neutral background. Maintain 3D depth and volume",
         )
         # Apply color calibration to match original
         image_edited_right = self._calibrate_colors(image, image_edited_right)
         image_without_background_right = self.rmbg.remove_background(image_edited_right)
 
-        # Back view for better 3D reconstruction
+        # Back view - 180° rotation around vertical axis (Y-axis)
         image_edited_back = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
-            prompt="Show back view of object while preserving exact colors, textures, proportions, and all details. Clean neutral background. Maintain original quality and sharpness",
+            prompt="Rotate object 180 degrees around vertical axis (Y-axis) to show back view. Preserve exact colors, textures, proportions, and all details. Clean neutral background. Maintain 3D depth and volume",
         )
         # Apply color calibration to match original
         image_edited_back = self._calibrate_colors(image, image_edited_back)
