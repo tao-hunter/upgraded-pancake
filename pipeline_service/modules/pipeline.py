@@ -133,19 +133,19 @@ class GenerationPipeline:
         # Decode input image
         image = decode_image(request.prompt_image)
 
-        # image_edited = self.qwen_edit.edit_image(
-        #     prompt_image=image,
-        #     seed=request.seed,
-        #     prompt="Show this object in left three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
-        # )
-        # image_without_background = self.rmbg.remove_background(image_edited)
-
-        image_edited_2 = self.qwen_edit.edit_image(
+        image_edited = self.qwen_edit.edit_image(
             prompt_image=image,
             seed=request.seed,
-            prompt="Show this object in right three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
+            prompt="Show this object in left three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
         )
-        image_without_background_2 = self.rmbg.remove_background(image_edited_2)
+        image_without_background = self.rmbg.remove_background(image_edited)
+
+        # image_edited_2 = self.qwen_edit.edit_image(
+        #     prompt_image=image,
+        #     seed=request.seed,
+        #     prompt="Show this object in right three-quarters view and make sure it is fully visible. Turn background neutral solid color contrasting with an object. Delete background details. Delete watermarks. Keep object colors. Sharpen image details",
+        # )
+        # image_without_background_2 = self.rmbg.remove_background(image_edited_2)
 
         image_edited_3 = self.qwen_edit.edit_image(
             prompt_image=image,
@@ -163,7 +163,7 @@ class GenerationPipeline:
         trellis_result = self.trellis.generate(
             TrellisRequest(
                 # images=[image_without_background, image_without_background_2, image_without_background_3],
-                images=[image_without_background_2, image_without_background_3],
+                images=[image_without_background, image_without_background_3],
                 seed=request.seed,
                 params=trellis_params,
             )
@@ -174,10 +174,10 @@ class GenerationPipeline:
             save_files(
                 trellis_result, 
                 image, 
-                # image_edited, 
-                # image_without_background,
-                image_edited_2,
-                image_without_background_2,
+                image_edited, 
+                image_without_background,
+                # image_edited_2,
+                # image_without_background_2,
                 image_edited_3,
                 image_without_background_3
             )
@@ -186,10 +186,8 @@ class GenerationPipeline:
         image_edited_base64 = None
         image_without_background_base64 = None
         if self.settings.send_generated_files:
-            # image_edited_base64 = to_png_base64(image_edited)
-            # image_without_background_base64 = to_png_base64(image_without_background)
-            image_edited_base64 = to_png_base64(image_edited_2)
-            image_without_background_base64 = to_png_base64(image_without_background_2)
+            image_edited_base64 = to_png_base64(image_edited)
+            image_without_background_base64 = to_png_base64(image_without_background)
 
         t2 = time.time()
         generation_time = t2 - t1
