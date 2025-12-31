@@ -28,10 +28,10 @@ class Settings(BaseSettings):
 
     # Trellis settings
     trellis_model_id: str = Field(default="jetx/trellis-image-large", env="TRELLIS_MODEL_ID")
-    trellis_sparse_structure_steps: int = Field(default=10, env="TRELLIS_SPARSE_STRUCTURE_STEPS")
-    trellis_sparse_structure_cfg_strength: float = Field(default=6.5, env="TRELLIS_SPARSE_STRUCTURE_CFG_STRENGTH")
-    trellis_slat_steps: int = Field(default=24, env="TRELLIS_SLAT_STEPS")
-    trellis_slat_cfg_strength: float = Field(default=3.0, env="TRELLIS_SLAT_CFG_STRENGTH")
+    trellis_sparse_structure_steps: int = Field(default=8, env="TRELLIS_SPARSE_STRUCTURE_STEPS")
+    trellis_sparse_structure_cfg_strength: float = Field(default=5.75, env="TRELLIS_SPARSE_STRUCTURE_CFG_STRENGTH")
+    trellis_slat_steps: int = Field(default=20, env="TRELLIS_SLAT_STEPS")
+    trellis_slat_cfg_strength: float = Field(default=2.4, env="TRELLIS_SLAT_CFG_STRENGTH")
     trellis_num_oversamples: int = Field(default=4, env="TRELLIS_NUM_OVERSAMPLES")
     compression: bool = Field(default=False, env="COMPRESSION")
 
@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     qwen_edit_model_path: str = Field(default="Qwen/Qwen-Image-Edit-2511",env="QWEN_EDIT_MODEL_PATH")
     qwen_edit_height: int = Field(default=1024, env="QWEN_EDIT_HEIGHT")
     qwen_edit_width: int = Field(default=1024, env="QWEN_EDIT_WIDTH")
-    num_inference_steps: int = Field(default=5, env="NUM_INFERENCE_STEPS")
-    true_cfg_scale: float = Field(default=1.2, env="TRUE_CFG_SCALE")
+    num_inference_steps: int = Field(default=4, env="NUM_INFERENCE_STEPS")
+    true_cfg_scale: float = Field(default=1.0, env="TRUE_CFG_SCALE")
     qwen_edit_prompt_path: Path = Field(default=config_dir.joinpath("qwen_edit_prompt.json"), env="QWEN_EDIT_PROMPT_PATH")
     use_original_as_primary: bool = Field(default=True, env="USE_ORIGINAL_AS_PRIMARY")
 
