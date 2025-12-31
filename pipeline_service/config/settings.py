@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     num_inference_steps: int = Field(default=4, env="NUM_INFERENCE_STEPS")
     true_cfg_scale: float = Field(default=1.0, env="TRUE_CFG_SCALE")
     qwen_edit_prompt_path: Path = Field(default=config_dir.joinpath("qwen_edit_prompt.json"), env="QWEN_EDIT_PROMPT_PATH")
-    use_original_as_primary: bool = Field(default=True, env="USE_ORIGINAL_AS_PRIMARY")
+    use_original_as_primary: bool = Field(default=False, env="USE_ORIGINAL_AS_PRIMARY")
 
     # Backgorund removal settings
     background_removal_model_id: str = Field(default="tuandao-zenai/rm_bg", env="BACKGROUND_REMOVAL_MODEL_ID")
